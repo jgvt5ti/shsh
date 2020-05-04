@@ -2,20 +2,24 @@ extern crate nix;
 use nix::sys::wait::*;
 use nix::unistd::*;
 use std::ffi::{CStr, CString};
-use std::io::{self, Write};
+use std::io::{self, BufRead, Write};
 
 fn main() {
-    const PROMPT: &str = "shsh $>";
+    const PROMPT: &str = "ｼｪﾙｼｪﾙ $>";
     loop {
         print!("{}", PROMPT);
         io::stdout().flush().unwrap();
         let mut buf = String::new();
-        // is EOF?
-        if io::stdin().read_line(&mut buf).expect("Input error") == 0 {
-            return;
+        let stdin = io::stdin();
+        let mut handle = stdin.lock();
+        match handle.read_line(&mut buf) {
+            Ok(0) => break, // is EOF?
+            Ok(_) => {
+                let args: Vec<&str> = buf.trim().split_whitespace().collect();
+                invoke_cmd(&args);
+            }
+            Err(e) => println!("Error: {}", e),
         }
-        let args: Vec<&str> = buf.trim().split_whitespace().collect();
-        invoke_cmd(&args);
     }
 }
 
@@ -31,16 +35,16 @@ fn invoke_cmd(args: &Vec<&str>) {
             _ => println!("Abnormal exit!"),
         },
         Ok(ForkResult::Child) => {
-            if args.len() == 0 {
-                return;
-            }
-            let cstring_args: Vec<CString> = args
-                .iter()
-                .map(|s| CString::new(s.clone()).unwrap())
-                .collect();
-            let exec_args: Vec<&CStr> = cstring_args.iter().map(AsRef::as_ref).collect();
+            if args.len() != 0 {
+                let cstring_args: Vec<CString> = args
+                    .iter()
+                    .map(|s| CString::new(s.clone()).unwrap())
+                    .collect();
+                let exec_args: Vec<&CStr> = cstring_args.iter().map(AsRef::as_ref).collect();
 
-            execv(exec_args[0], exec_args.as_ref()).expect("Execution failed");
+                execv(exec_args[0], exec_args.as_ref()).expect("Execution failed");
+            }
+            std::process::exit(0);
         }
         Err(_) => println!("Fork failed"),
     }

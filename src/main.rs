@@ -1,8 +1,10 @@
 extern crate nix;
 use nix::sys::wait::*;
 use nix::unistd::*;
+use std::env;
 use std::ffi::{CStr, CString};
 use std::io::{self, BufRead, Write};
+use std::path::Path;
 
 fn main() {
     const PROMPT: &str = "ｼｪﾙｼｪﾙ $>";
@@ -89,5 +91,19 @@ fn exec_cmd(input: &str) {
         .map(|s| CString::new(s.clone()).unwrap())
         .collect();
     let exec_args: Vec<&CStr> = cstring_args.iter().map(AsRef::as_ref).collect();
+    path_exec(args[0], &exec_args);
     execv(exec_args[0], exec_args.as_ref()).expect("Execution failed");
+}
+
+fn path_exec(name: &str, args: &Vec<&CStr>) {
+    let path_str = env::var("PATH").unwrap();
+    let paths: Vec<&str> = path_str.split(':').collect();
+    for path in paths {
+        let full_path = format!("{}/{}", path, name);
+        let p = Path::new(&full_path);
+        if Path::is_file(p) {
+            let full_path_c = CString::new(full_path).unwrap();
+            execv(&full_path_c, args.as_ref()).expect("Execution failed");
+        }
+    }
 }
